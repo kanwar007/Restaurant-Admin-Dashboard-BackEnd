@@ -1,0 +1,149 @@
+name: cafe-admin-backend
+
+x-service-build: &service-build
+  context: .
+  dockerfile: Dockerfile
+  args:
+    MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+
+x-db-env: &db-env
+  DB_URL: jdbc:postgresql://postgres:5432/cafeadmin
+  DB_USERNAME: cafeadmin
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-cafeadmin}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cafeadmin
+      POSTGRES_USER: cafeadmin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cafeadmin}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafeadmin -d cafeadmin"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  identity-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: identity-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      <<: *db-env
+      SERVER_PORT: 8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  catalog-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: catalog-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      <<: *db-env
+      SERVER_PORT: 8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
+  floor-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: floor-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      <<: *db-env
+      SERVER_PORT: 8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
+  ordering-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: ordering-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      <<: *db-env
+      SERVER_PORT: 8084
+      CATALOG_URL: http://catalog-service:8082
+      FLOOR_URL: http://floor-service:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+
+  billing-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: billing-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      <<: *db-env
+      SERVER_PORT: 8085
+      ORDERING_URL: http://ordering-service:8084
+      IDENTITY_URL: http://identity-service:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+
+  reporting-service:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: reporting-service
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      SERVER_PORT: 8086
+      ORDERING_URL: http://ordering-service:8084
+      FLOOR_URL: http://floor-service:8083
+      BILLING_URL: http://billing-service:8085
+    ports:
+      - "8086:8086"
+
+  api-gateway:
+    build:
+      <<: *service-build
+      args:
+        SERVICE: api-gateway
+        MAVEN_MIRROR_URL: ${MAVEN_MIRROR_URL:-}
+    environment:
+      SERVER_PORT: 8080
+      IDENTITY_URL: http://identity-service:8081
+      CATALOG_URL: http://catalog-service:8082
+      FLOOR_URL: http://floor-service:8083
+      ORDERING_URL: http://ordering-service:8084
+      BILLING_URL: http://billing-service:8085
+      REPORTING_URL: http://reporting-service:8086
+    depends_on:
+      - identity-service
+      - catalog-service
+      - floor-service
+      - ordering-service
+      - billing-service
+      - reporting-service
+    ports:
+      - "4000:8080"
+
+volumes:
+  postgres-data:

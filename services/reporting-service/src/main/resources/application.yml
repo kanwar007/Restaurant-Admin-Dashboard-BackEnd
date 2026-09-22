@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: reporting-service
+
+app:
+  timezone: ${RESTAURANT_TIMEZONE:Asia/Kolkata}
+  ordering-url: ${ORDERING_URL:http://localhost:8084}
+  floor-url: ${FLOOR_URL:http://localhost:8083}
+  billing-url: ${BILLING_URL:http://localhost:8085}
+  reset:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
