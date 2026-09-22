@@ -72,6 +72,23 @@ projected from Key Vault via the CSI driver or workload identity).
 `deploy-aks.yml` needs these repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`,
 `AZURE_SUBSCRIPTION_ID`, `AKS_RESOURCE_GROUP`, `AKS_CLUSTER_NAME`.
 
+## Logging and correlation IDs
+
+Every service logs through Log4j2 (`log4j2-spring.xml`, shipped in `common` and `api-gateway`) with
+the pattern `timestamp level [service] [correlationId] [thread] logger - message`.
+
+The gateway accepts an `X-Correlation-Id` request header and generates a UUID when it is absent, then
+forwards it downstream and echoes it on the response. Each service puts it into the SLF4J MDC for the
+duration of the request and re-attaches it to outbound service-to-service calls, so one request is
+greppable across containers:
+
+```bash
+curl -s -D - -o /dev/null -H 'X-Correlation-Id: demo-trace-777' http://localhost:4000/api/dashboard
+docker compose logs | grep demo-trace-777
+```
+
+Set `APP_LOG_LEVEL` / `ROOT_LOG_LEVEL` to change verbosity.
+
 ## Development reset
 
 `POST /api/reset` re-seeds every service from its Flyway seed function. Set `RESET_ENABLED=false`
