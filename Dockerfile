@@ -12,7 +12,8 @@ RUN if [ -n "$MAVEN_MIRROR_URL" ]; then \
 
 COPY pom.xml ./
 COPY services ./services
-RUN mvn -B -DskipTests package
+RUN mvn -B -DskipTests -Dmaven.wagon.http.retryHandler.count=5 \
+      -Dmaven.wagon.http.retryHandler.requestSentEnabled=true package
 
 FROM eclipse-temurin:17-jre
 ARG SERVICE

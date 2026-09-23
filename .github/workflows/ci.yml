@@ -24,7 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Start stack
-        run: docker compose up -d --build
+        run: |
+          for attempt in 1 2 3; do
+            docker compose up -d --build && exit 0
+            echo "compose build/start attempt $attempt failed, retrying"
+            docker compose down -v
+            sleep 15
+          done
+          exit 1
       - name: Wait for stack
         run: |
           for i in $(seq 1 60); do
