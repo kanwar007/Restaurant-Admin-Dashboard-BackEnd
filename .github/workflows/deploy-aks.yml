@@ -1,0 +1,52 @@
+name: Deploy to AKS
+
+on:
+  workflow_run:
+    workflows: ["Build and publish images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to roll out
+        required: false
+        default: latest
+
+# Requires repo secrets/variables:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (OIDC federated credential)
+#   AKS_RESOURCE_GROUP, AKS_CLUSTER_NAME
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: aks
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+      - name: Set image tag
+        run: |
+          TAG="${{ inputs.image_tag || github.event.workflow_run.head_sha || 'latest' }}"
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Render manifests
+        run: kubectl kustomize deploy/k8s/overlays/aks | sed "s|:latest|:${IMAGE_TAG}|g" > /tmp/manifests.yaml
+      - name: Apply
+        run: kubectl apply -f /tmp/manifests.yaml
+      - name: Wait for rollout
+        run: |
+          for service in postgres; do
+            kubectl -n cafe-admin rollout status statefulset/$service --timeout=5m
+          done
+          for service in identity-service catalog-service floor-service ordering-service billing-service reporting-service api-gateway; do
+            kubectl -n cafe-admin rollout status deployment/$service --timeout=5m
+          done

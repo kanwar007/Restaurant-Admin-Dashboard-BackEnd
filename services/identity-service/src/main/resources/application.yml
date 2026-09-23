@@ -1,0 +1,38 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cafeadmin}
+    username: ${DB_USERNAME:cafeadmin}
+    password: ${DB_PASSWORD:cafeadmin}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        default_schema: identity
+  flyway:
+    enabled: true
+    schemas: identity
+    default-schema: identity
+
+app:
+  restaurant-code: ${RESTAURANT_CODE:CAFE01}
+  session-ttl-hours: ${SESSION_TTL_HOURS:12}
+  seed-function: identity.seed_demo_data
+  reset:
+    enabled: ${RESET_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
