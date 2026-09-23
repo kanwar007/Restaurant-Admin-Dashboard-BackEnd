@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -62,7 +63,7 @@ public class OrderService {
 
     @Transactional
     public OrderView updateStatus(UUID id, String status) {
-        if (!ASSIGNABLE_STATUSES.contains(status)) {
+        if (status == null || !ASSIGNABLE_STATUSES.contains(status)) {
             throw ApiException.badRequest("status must be one of new, kot-printed, served");
         }
         OrderEntity order = orders.findById(id)
@@ -80,7 +81,14 @@ public class OrderService {
                 .orElseThrow(() -> ApiException.notFound("Not found"));
         statusHistory.save(new OrderStatusHistoryEntity(order.getId(), order.getStatus(), "cancelled"));
         order.changeStatus("cancelled");
-        floor.release(order.getOrderNo());
+        activeOrders().stream()
+                .filter(entry -> !entry.getId().equals(order.getId()))
+                .filter(entry -> entry.getTableNumber().equalsIgnoreCase(order.getTableNumber()))
+                .max(Comparator.comparing(OrderEntity::getPlacedAt))
+                .ifPresentOrElse(
+                        remaining -> floor.occupy(remaining.getTableNumber(), remaining.getId(),
+                                remaining.getOrderNo()),
+                        () -> floor.release(order.getOrderNo()));
     }
 
     @Transactional
@@ -96,6 +104,9 @@ public class OrderService {
                 "guest", blankToNull(request.customerName()), blankToNull(request.notes()));
 
         for (GuestOrderItem item : request.items()) {
+            if (item == null || item.name() == null || item.name().isBlank()) {
+                throw ApiException.badRequest("each item needs a name");
+            }
             int quantity = item.quantity() == null ? 1 : item.quantity();
             if (quantity < 1) {
                 throw ApiException.badRequest("quantity must be a positive whole number");
