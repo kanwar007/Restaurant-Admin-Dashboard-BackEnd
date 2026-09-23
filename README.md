@@ -33,6 +33,9 @@ curl http://localhost:4000/api/health
 The gateway is published on `http://localhost:4000`, matching the frontend's expected API base URL.
 Demo logins: `admin` / `admin123` and `cashier` / `cashier123`.
 
+On Windows, follow [docs/windows-local-setup.md](docs/windows-local-setup.md) for the step-by-step
+Docker Desktop / PowerShell / Git Bash walkthrough.
+
 If your network cannot reach Maven Central directly, pass a mirror to the image build:
 
 ```bash
